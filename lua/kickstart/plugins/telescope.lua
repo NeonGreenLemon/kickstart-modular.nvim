@@ -5,6 +5,34 @@
 --
 -- Use the `dependencies` key to specify the dependencies of a particular plugin
 
+local function get_project_root()
+  local path = vim.fn.expand '%:p'
+  local clients = vim.lsp.get_clients { bufnr = 0 }
+  for _, client in ipairs(clients) do
+    local workspace_folders = client.config.workspace_folders
+    local root_dir = client.config.root_dir
+    if workspace_folders then
+      for _, folder in ipairs(workspace_folders) do
+        local folder_path = vim.uri_to_fname(folder.uri)
+        if path:find(folder_path, 1, true) then
+          return folder_path
+        end
+      end
+    elseif root_dir and path:find(root_dir, 1, true) then
+      return root_dir
+    end
+  end
+
+  -- fallback to git root
+  local git_root = vim.fn.systemlist('git rev-parse --show-toplevel')[1]
+  if vim.v.shell_error == 0 then
+    return git_root
+  end
+
+  -- fallback to cwd
+  return vim.loop.cwd()
+end
+
 return {
   { -- Fuzzy Finder (files, lsp, etc)
     'nvim-telescope/telescope.nvim',
@@ -94,6 +122,10 @@ return {
           previewer = false,
         })
       end, { desc = '[/] Fuzzily search in current buffer' })
+
+      vim.keymap.set('n', '<leader>sp', function()
+        builtin.find_files { cwd = get_project_root() }
+      end, { desc = '[S]earch [P]roject root files' })
 
       -- It's also possible to pass additional configuration options.
       --  See `:help telescope.builtin.live_grep()` for information about particular keys
